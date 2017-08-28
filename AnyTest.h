@@ -4,7 +4,7 @@ class AnyTest
 public:
 	AnyTest();
 	~AnyTest();
-	void readImage();
+	void test();
 	void readLRImage();
 private:
 	float * leftImage;

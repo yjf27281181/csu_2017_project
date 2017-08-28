@@ -5,6 +5,7 @@ using namespace std;
 int main()
 {
 	AnyTest anyTest;
+	anyTest.test();
 	anyTest.readLRImage();
 	return 0;
 }

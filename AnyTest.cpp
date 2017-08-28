@@ -1,6 +1,7 @@
 #include "AnyTest.h"
 #include "gdal_priv.h"
 #include "cpl_conv.h" //for CPLMalloc()
+#include "RPCProcessing.h"
 //#include "cpl_conv.h" //for CPLMalloc()
 
 typedef unsigned char BYTE;
@@ -18,41 +19,37 @@ AnyTest::~AnyTest()
 {
 }
 
-void AnyTest::readImage()
+/**
+*测试函数，可以随便改
+*/
+void AnyTest::test()
 {
-	GDALDataset *demFileData;
-	GDALDriver *poDriver1;
-	GDALAllRegister();
+	RPCProcessing processing;
+	string path = "E:\\data\\testRPC.txt";
+	RPCCOEFFCIENT rpcCoeff;
+	processing.readRPCfile(path, rpcCoeff);
 
-	char* demName;
-	// 		char* demFirstName = "ADS_DEM_";
-	demName = "E:\\data\\2.tif";
+	path = "E:\\data\\testAffine.txt";
+	RPCImAffine rpcImAffine;
+	processing.readaffinepara(path, rpcImAffine);
 
-	demFileData = (GDALDataset *)GDALOpen(demName, GA_ReadOnly);
-	const int nImgSizeX1 =500;
-	const int nImgSizeY1 = 500;
 
-	float *pDem = new float[nImgSizeX1*nImgSizeY1];
-	demFileData->RasterIO(GF_Read, 0, 0, nImgSizeX1, nImgSizeY1, pDem, nImgSizeX1, nImgSizeY1, GDT_Float32, 1, 0, 0, 0, 0);
+	SATPoint2D test2Dpoint;
+	test2Dpoint.line = 10;
+	test2Dpoint.sample = 20;
 
-	int bandNum = demFileData->GetRasterCount();    //波段数
-	int depth = GDALGetDataTypeSize(demFileData->GetRasterBand(1)->GetRasterDataType()) / 8;
+	SATPoint3D test3Dpoint;
+	processing.RPCImg2Obj(rpcCoeff, 10, rpcImAffine, test2Dpoint, test3Dpoint);
 
-	GDALDriver *pDriver = GetGDALDriverManager()->GetDriverByName("GTIFF"); //图像驱动
-	char** ppszOptions = NULL;
-	ppszOptions = CSLSetNameValue(ppszOptions, "BIGTIFF", "IF_NEEDED"); //配置图像信息
-	const char* dstPath = "E:\\data\\2_part.tif";
-	GDALDataset* dst = pDriver->Create(dstPath, nImgSizeX1, nImgSizeY1, bandNum, GDT_Byte, ppszOptions);
-	
-	//申请buf
+	RPCImAffine inverseAffine;
+	processing.GetInverseAffPara(rpcImAffine, inverseAffine);
 
-	dst->RasterIO(GF_Write, 0, 0, nImgSizeX1, nImgSizeY1, pDem, nImgSizeX1, nImgSizeY1,
-		GDT_Byte, bandNum, nullptr, bandNum*depth, nImgSizeX1*bandNum*depth, depth);
-
-	delete[] pDem;
+	SATPoint2D point = processing.RPCObj2Img(rpcCoeff, test3Dpoint, inverseAffine);
 
 }
-
+/**
+*读取左右影像灰度值，并保存在float数组中
+*/
 void AnyTest::readLRImage()
 {
 	GDALDataset *demFileData;
@@ -75,6 +72,4 @@ void AnyTest::readLRImage()
 
 	rightImage = new float[nImgSizeX1*nImgSizeY1];
 	demFileData->RasterIO(GF_Read, 0, 0, nImgSizeX1, nImgSizeY1, rightImage, nImgSizeX1, nImgSizeY1, GDT_Float32, 1, 0, 0, 0, 0);
-
-
 }
