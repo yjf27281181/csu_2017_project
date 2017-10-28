@@ -14,11 +14,11 @@ public:
 	void readLRImage();
 	void readRPCCOEFFCIENTAndRPCImAffine();
 	void calCounterpartLines(SATPoint2D point, int layer);
+	void createEpipolarImage();
 private:
 	float * leftImage;
 	float * rightImage;
 
-	int rImageSizeWidth;
 
 	RPCCOEFFCIENT lCoefficient;
 	RPCCOEFFCIENT rCoefficient;
@@ -26,6 +26,14 @@ private:
 	RPCImAffine lAffine;
 	RPCImAffine rAffine;
 
+	int lineCount = 0;
+	int sampleCount = 0;
+
+	double lk = 0, lb = 0;
+	double rk = 0, rb = 0;
+
+	float* rightEpipolarImage;
+	float* leftEpipolarImage;
 	void calCoefficients(vector<SATPoint2D> points, double& k, double& b);
 
 

@@ -16,18 +16,20 @@ AnyTest::~AnyTest()
 */
 void AnyTest::test()
 {
-	//SATPoint2D test2Dpoint;
-	//test2Dpoint.line = 10;
-	//test2Dpoint.sample = 20;
+	vector<SATPoint2D> points;
+	SATPoint2D tmpPoint1;
+	tmpPoint1.line = 10;
+	tmpPoint1.sample = 30;
 
-	//SATPoint3D test3Dpoint;
-	//processing.RPCImg2Obj(rpcCoeff, 10, rpcImAffine, test2Dpoint, test3Dpoint);
+	SATPoint2D tmpPoint2;
+	tmpPoint2.line = 20;
+	tmpPoint2.sample = 50;
 
-	//RPCImAffine inverseAffine;
-	//processing.GetInverseAffPara(rpcImAffine, inverseAffine);
+	points.push_back(tmpPoint1);
+	points.push_back(tmpPoint2);
 
-	//SATPoint2D point = processing.RPCObj2Img(rpcCoeff, test3Dpoint, inverseAffine);
-
+	double k, b;
+	calCoefficients(points,k,b);
 }
 /**
 *读取左右影像灰度值，并保存在float数组中
@@ -39,7 +41,7 @@ void AnyTest::readLRImage()
 	GDALAllRegister();
 
 	char* demName;
-	demName = "E:\\data\\1.tif";
+	demName = "E:\\data\\2017Project_csu\\left_sub.tif";
 	demFileData = (GDALDataset *)GDALOpen(demName, GA_ReadOnly);		//将tif文件存入进去
 	int nImgSizeX1 = demFileData->GetRasterXSize();										//图片的长宽
 	int nImgSizeY1 = demFileData->GetRasterYSize();
@@ -48,14 +50,26 @@ void AnyTest::readLRImage()
 	demFileData->RasterIO(GF_Read, 0, 0, nImgSizeX1, nImgSizeY1, leftImage, nImgSizeX1, nImgSizeY1, GDT_Float32, 1, 0, 0, 0, 0);		//将图片数据存入数组
 
 	//同上，读取右影像
-	demName = "E:\\data\\2.tif";
+	demName = "E:\\data\\2017Project_csu\\right_sub.tif";
 	demFileData = (GDALDataset *)GDALOpen(demName, GA_ReadOnly);
 	nImgSizeX1 = demFileData->GetRasterXSize();
 	nImgSizeY1 = demFileData->GetRasterYSize();
 
+	lineCount = nImgSizeY1;
+	sampleCount = nImgSizeX1;
+
 	rightImage = new float[nImgSizeX1*nImgSizeY1];
 	demFileData->RasterIO(GF_Read, 0, 0, nImgSizeX1, nImgSizeY1, rightImage, nImgSizeX1, nImgSizeY1, GDT_Float32, 1, 0, 0, 0, 0);
-	rImageSizeWidth = nImgSizeX1;
+
+	leftEpipolarImage = new float[nImgSizeX1*nImgSizeY1];
+	rightEpipolarImage = new float[nImgSizeX1*nImgSizeY1];
+
+	for (int i = 0; i < sampleCount; i++) {
+		for (int j = 0; j < lineCount; j++) {
+			leftEpipolarImage[sampleCount*j + i] = 0;
+			rightEpipolarImage[sampleCount*j + i] = 0;
+		}
+	}
 }
 
 //依据一系列points，拟合一个y=kx+b形式的直线
@@ -68,10 +82,15 @@ void AnyTest::calCoefficients(vector<SATPoint2D> points, double & k, double & b)
 	int n = points.size();
 	for (int i = 0; i < n; i++)
 	{
-		SigmaX += points[i].line;
-		SigmaY += points[i].sample;
-		SigmaXY += points[i].line * points[i].sample;
-		SigmaX2 += points[i].line * points[i].line;
+		SigmaX += points[i].sample;
+		SigmaY += points[i].line;
+		SigmaXY += points[i].sample * points[i].line;
+		SigmaX2 += points[i].sample * points[i].sample;
+
+		//SigmaX += points[i].line;
+		//SigmaY += points[i].sample;
+		//SigmaXY += points[i].line * points[i].sample;
+		//SigmaX2 += points[i].line * points[i].line;
 	}
 
 	k = (n * SigmaXY - SigmaX * SigmaY) / (n * SigmaX2 - SigmaX * SigmaX);
@@ -84,14 +103,14 @@ void AnyTest::calCoefficients(vector<SATPoint2D> points, double & k, double & b)
 void AnyTest::readRPCCOEFFCIENTAndRPCImAffine()
 {
 	RPCProcessing processing;
-	string path = "E:\\data\\testRPC.txt";
+	string path = "E:\\data\\2017Project_csu\\left_rpc.txt";
 	processing.readRPCfile(path, lCoefficient); //读取左影像参数
-	path = "E:\\data\\testAffine.txt";
+	path = "E:\\data\\2017Project_csu\\left_affine.txt";
 	processing.readaffinepara(path, lAffine);
 
-	path = "E:\\data\\testRPC.txt";
+	path = "E:\\data\\2017Project_csu\\right_rpc.txt";
 	processing.readRPCfile(path, rCoefficient); //读取左影像参数
-	path = "E:\\data\\testAffine.txt";
+	path = "E:\\data\\2017Project_csu\\right_affine.txt";
 	processing.readaffinepara(path, rAffine);
 }
 
@@ -119,22 +138,48 @@ void AnyTest::calCounterpartLines(SATPoint2D point, int layer)
 	}
 
 	//计算右边对应点拟合的直线
-	double rk = 0, rb = 0;
-	calCoefficients(rPoints,rk,rb);
-	
-	SATPoint2D tmpRPoint2;//随机找一个右影像线上的点，这里是横坐标取全图的一半，纵坐标用y=kx+b计算
-	tmpRPoint2.line = rImageSizeWidth / 2;
-	tmpRPoint2.sample = rk*tmpRPoint2.line + rb;
-	SATPoint3D tmp3Dpoint;
-	processing.RPCImg2Obj(rCoefficient, 0, rAffine, tmpRPoint2, tmp3Dpoint);
-	RPCImAffine inverseLAffine;
-	processing.GetInverseAffPara(lAffine, inverseLAffine);
-	SATPoint2D lPoint2 = processing.RPCObj2Img(lCoefficient, tmp3Dpoint, inverseLAffine); //左影像上的点
 
-	vector<SATPoint2D> lPoints;
-	lPoints.push_back(point);
-	lPoints.push_back(lPoint2);
-	double lk = 0, lb = 0;
-	//根据两个点拟合成直线
+	calCoefficients(rPoints,rk,rb);
+
+	vector<SATPoint2D> lPoints;//左影像点集
+	for (int i = 0; i < 2; i++) 
+	{
+		SATPoint2D tmpRPoint2;//随机找一个右影像线上的点，这里是横坐标取全图的一半，纵坐标用y=kx+b计算
+		tmpRPoint2.sample = sampleCount / (i+2);
+		tmpRPoint2.line = rk*tmpRPoint2.sample + rb;
+		SATPoint3D tmp3Dpoint;
+		processing.RPCImg2Obj(rCoefficient, 0, rAffine, tmpRPoint2, tmp3Dpoint);
+		RPCImAffine inverseLAffine;
+		processing.GetInverseAffPara(lAffine, inverseLAffine);
+		SATPoint2D tmpLPoint = processing.RPCObj2Img(lCoefficient, tmp3Dpoint, inverseLAffine); //左影像上的点
+		lPoints.push_back(tmpLPoint);
+	}
+	//lPoints.push_back(point);
+
+
+	//根据点结拟合成直线
 	calCoefficients(lPoints, lk, lb);
+}
+
+void AnyTest::createEpipolarImage()
+{
+	for (int tmpLine = 0; tmpLine < lineCount; tmpLine++) {
+		SATPoint2D tmpPoint;
+		tmpPoint.sample = sampleCount / 2;
+		tmpPoint.line = tmpLine;
+
+		//ceshi
+		tmpPoint.sample =10;
+		tmpPoint.line = 20;
+		calCounterpartLines(tmpPoint,10);
+		for (int tmpSample = 0; tmpSample < sampleCount; tmpSample++) {
+			int lTmpY = tmpSample*lk + lb;
+			if(lTmpY<lineCount&&lTmpY>=0)
+				leftEpipolarImage[tmpLine*sampleCount + tmpSample] = leftImage[lTmpY*sampleCount + tmpSample];
+
+			int rTmpY = tmpSample*rk + rb;
+			if (rTmpY<lineCount&&rTmpY >= 0)
+				rightEpipolarImage[tmpLine*sampleCount + tmpSample] = rightImage[rTmpY*sampleCount + tmpSample];
+		}
+	}
 }
